@@ -6,6 +6,7 @@ services:
     container_name: miroshark-neo4j
     environment:
       - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set in .env}
+      - NEO4J_server_jvm_additional=--add-modules jdk.incubator.vector
     ports:
       - "7474:7474"
       - "7687:7687"

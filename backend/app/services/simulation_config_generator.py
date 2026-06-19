@@ -234,13 +234,13 @@ class SimulationConfigGenerator:
     # Maximum context character count
     MAX_CONTEXT_LENGTH = 50000
     # Number of Agents per batch — keep small to avoid JSON truncation with local LLMs
-    AGENTS_PER_BATCH = 15
+    AGENTS_PER_BATCH = 7
 
     # Context truncation lengths for each step (characters)
     TIME_CONFIG_CONTEXT_LENGTH = 10000   # Time configuration
     EVENT_CONFIG_CONTEXT_LENGTH = 8000   # Event configuration
-    ENTITY_SUMMARY_LENGTH = 300          # Entity summary
-    AGENT_SUMMARY_LENGTH = 300           # Entity summary in Agent configuration
+    ENTITY_SUMMARY_LENGTH = 500          # Entity summary
+    AGENT_SUMMARY_LENGTH = 500           # Entity summary in Agent configuration
     ENTITIES_PER_TYPE_DISPLAY = 20       # Number of entities displayed per type
 
     def __init__(
