@@ -29,11 +29,19 @@ from pathlib import Path
 
 logger = logging.getLogger("miroshark.prepare_offline_cache")
 
-# Models loaded at runtime by MiroShark / Wonderwall (see reranker_service.py, recsys.py).
-DEFAULT_HF_MODELS = (
-    "BAAI/bge-reranker-v2-m3",
-    "Twitter/twhin-bert-base",
-)
+# Default matches Config.RERANKER_MODEL (app/config.py). Runtime loads this env var via
+# RerankerService — offline prep must cache the same repo, not a hardcoded duplicate.
+_DEFAULT_RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
+# Hardcoded in wonderwall/social_platform/recsys.py (no RECSYS_MODEL env).
+RECSYS_MODEL = "Twitter/twhin-bert-base"
+
+
+def _resolve_reranker_model() -> str:
+    return os.environ.get("RERANKER_MODEL", _DEFAULT_RERANKER_MODEL).strip()
+
+
+def _default_hf_models() -> list[str]:
+    return [_resolve_reranker_model(), RECSYS_MODEL]
 
 COUNTRIES_DIR = Path(__file__).resolve().parent.parent / "app" / "countries"
 
@@ -57,7 +65,7 @@ def _parse_args() -> argparse.Namespace:
         action="append",
         dest="models",
         metavar="REPO_ID",
-        help="Extra HF model repo to cache (repeatable). Defaults cover reranker + twhin.",
+        help="Extra HF model repo to cache (repeatable). Defaults: $RERANKER_MODEL + twhin.",
     )
     parser.add_argument(
         "--include-demographic-datasets",
@@ -176,6 +184,7 @@ def _verify_offline(hf_home: Path, models: list[str], verbose: bool) -> None:
     env["HF_HUB_OFFLINE"] = "1"
     env["TRANSFORMERS_OFFLINE"] = "1"
     env["_MIROSHARK_VERIFY_MODELS"] = ",".join(models)
+    env["_MIROSHARK_VERIFY_RERANKER_MODEL"] = _resolve_reranker_model()
 
     logger.info("Verifying offline load in a fresh subprocess (HF_HUB_OFFLINE=1)…")
     cmd = [sys.executable, str(Path(__file__).resolve()), "--_verify-worker"]
@@ -193,27 +202,29 @@ def _verify_offline_worker(verbose: bool) -> None:
         format="[%(levelname)s] %(message)s",
     )
     models = [m for m in os.environ.get("_MIROSHARK_VERIFY_MODELS", "").split(",") if m]
+    reranker_model = os.environ.get("_MIROSHARK_VERIFY_RERANKER_MODEL", "").strip()
 
-    if "BAAI/bge-reranker-v2-m3" in models:
+    if reranker_model and reranker_model in models:
         from sentence_transformers import CrossEncoder
 
         CrossEncoder(
-            "BAAI/bge-reranker-v2-m3",
+            reranker_model,
             max_length=512,
             device="cpu",
             local_files_only=True,
         )
-        logger.info("Verified reranker: BAAI/bge-reranker-v2-m3")
+        logger.info("Verified reranker: %s", reranker_model)
 
-    if "Twitter/twhin-bert-base" in models:
+    if RECSYS_MODEL in models:
         from transformers import AutoModel, AutoTokenizer
 
-        AutoTokenizer.from_pretrained("Twitter/twhin-bert-base", local_files_only=True)
-        AutoModel.from_pretrained("Twitter/twhin-bert-base", local_files_only=True)
-        logger.info("Verified recsys model: Twitter/twhin-bert-base")
+        AutoTokenizer.from_pretrained(RECSYS_MODEL, local_files_only=True)
+        AutoModel.from_pretrained(RECSYS_MODEL, local_files_only=True)
+        logger.info("Verified recsys model: %s", RECSYS_MODEL)
 
+    known = {reranker_model, RECSYS_MODEL} - {""}
     for repo_id in models:
-        if repo_id in {"BAAI/bge-reranker-v2-m3", "Twitter/twhin-bert-base"}:
+        if repo_id in known:
             continue
         from huggingface_hub import snapshot_download
 
@@ -281,7 +292,7 @@ def main() -> int:
 
     hf_home = Path(args.hf_home).resolve()
     backend_data_dir = Path(args.backend_data_dir).resolve()
-    models = list(DEFAULT_HF_MODELS)
+    models = _default_hf_models()
     if args.models:
         for extra in args.models:
             if extra not in models:
@@ -293,10 +304,6 @@ def main() -> int:
             item = item.strip()
             if item and item not in models:
                 models.append(item)
-
-    reranker_override = os.environ.get("RERANKER_MODEL", "").strip()
-    if reranker_override and reranker_override not in models:
-        models.append(reranker_override)
 
     try:
         _download_hf_models(hf_home, models)

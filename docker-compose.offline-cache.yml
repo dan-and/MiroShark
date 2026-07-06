@@ -9,9 +9,10 @@
 #   docker compose -f docker-compose.offline-cache.yml run --rm prepare-offline-cache \
 #     --include-demographic-datasets --demographic-country us --demographic-country sg
 #
-# Extra model (e.g. custom RERANKER_MODEL):
-#   docker compose -f docker-compose.offline-cache.yml run --rm prepare-offline-cache \
-#     --model my-org/my-reranker
+# Override reranker (same RERANKER_MODEL as runtime):
+#   RERANKER_MODEL=my-org/my-reranker docker compose -f docker-compose.offline-cache.yml run --rm prepare-offline-cache
+#
+# Extra HF model on top of defaults:
 #
 # Export HF cache to portable archive (default: ./offline-cache-export/):
 #   docker compose -f docker-compose.offline-cache.yml --profile export run --rm export-offline-cache
@@ -37,8 +38,8 @@ services:
     environment:
       # Optional comma-separated extra HF model repos.
       - EXTRA_HF_MODELS=${EXTRA_HF_MODELS:-}
-      # If set, also cached alongside the default reranker model.
-      - RERANKER_MODEL=${RERANKER_MODEL:-}
+      # Same env as runtime (Config.RERANKER_MODEL); selects which reranker to cache.
+      - RERANKER_MODEL=${RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
 
   export-offline-cache:
     image: alpine:3.21

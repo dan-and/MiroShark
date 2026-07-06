@@ -73,18 +73,20 @@ docker compose -f docker-compose.offline-cache.yml run --rm prepare-offline-cach
 
 ### Custom reranker model
 
-If you override `RERANKER_MODEL` in `.env`, cache that repo too:
+Offline prep uses the same `RERANKER_MODEL` env var as runtime (`Config.RERANKER_MODEL` /
+`RerankerService`). Set it in `.env` or pass it when running prep — only that reranker is
+cached and verified (not the default `BAAI/bge-reranker-v2-m3` unless that is your value):
 
 ```bash
 RERANKER_MODEL=my-org/my-reranker \
   docker compose -f docker-compose.offline-cache.yml run --rm prepare-offline-cache
 ```
 
-Or pass `--model` explicitly:
+`--model` adds **extra** repos on top of the runtime defaults (reranker + twhin):
 
 ```bash
 docker compose -f docker-compose.offline-cache.yml run --rm prepare-offline-cache \
-  --model my-org/my-reranker
+  --model my-org/experimental-reranker
 ```
 
 Comma-separated extras via env (compose forwards this):
@@ -119,7 +121,7 @@ uv run python scripts/prepare_offline_cache.py --help
 | `--demographic-country CODE` | Limit download to `us`, `sg`, … (repeatable) |
 | `--skip-verify` | Skip offline load test |
 | `-v` / `--verbose` | Debug logging |
-| `RERANKER_MODEL` | If set, also cached (in addition to defaults) |
+| `RERANKER_MODEL` | Reranker to cache (default `BAAI/bge-reranker-v2-m3`; same as runtime) |
 | `EXTRA_HF_MODELS` | Comma-separated extra model repos |
 | `OFFLINE_CACHE_ARCHIVE_DIR` | Host directory for `.tgz` export/import (default `./offline-cache-export`) |
 
