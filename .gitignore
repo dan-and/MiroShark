@@ -5,6 +5,9 @@ Thumbs.db
 # Launcher
 .miroshark.pids
 
+# Offline cache volume exports (docker-compose.offline-cache.yml)
+offline-cache-export/
+
 # Reference-only clone of the Hyperstitions design system
 # (https://github.com/aaronjmars/design-system) — not part of the project
 design-system/
@@ -64,6 +67,9 @@ backend/events.jsonl
 
 # Uploaded files
 backend/uploads/
+
+# Downloaded demographic persona parquets (Nemotron HF snapshots)
+backend/data/nemotron/
 
 # Docker data
 data/

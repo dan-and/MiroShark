@@ -1,0 +1,97 @@
+# Populate Hugging Face + optional Nemotron datasets for air-gapped deploys.
+# Run on a network-connected machine; HF models land in miroshark_hf_cache,
+# Nemotron parquets under ./backend/data/nemotron/ (same bind-mount path as runtime).
+#
+# Core models only (~3.2 GB into miroshark_hf_cache):
+#   docker compose -f docker-compose.offline-cache.yml run --rm prepare-offline-cache
+#
+# Include US + Singapore demographic datasets:
+#   docker compose -f docker-compose.offline-cache.yml run --rm prepare-offline-cache \
+#     --include-demographic-datasets --demographic-country us --demographic-country sg
+#
+# Extra model (e.g. custom RERANKER_MODEL):
+#   docker compose -f docker-compose.offline-cache.yml run --rm prepare-offline-cache \
+#     --model my-org/my-reranker
+#
+# Export HF cache to portable archive (default: ./offline-cache-export/):
+#   docker compose -f docker-compose.offline-cache.yml --profile export run --rm export-offline-cache
+#
+# Import HF cache on the air-gapped host (copy .tgz files into ./offline-cache-export/ first):
+#   docker compose -f docker-compose.offline-cache.yml --profile import run --rm import-offline-cache
+#
+# Nemotron parquets live under ./backend/data/nemotron/ — copy that directory
+# alongside the HF archive (or rsync the whole ./backend/data tree).
+#
+# On the air-gapped host, set in .env or compose environment:
+#   HF_HUB_OFFLINE=1
+#   TRANSFORMERS_OFFLINE=1
+services:
+  prepare-offline-cache:
+    build:
+      context: .
+      dockerfile: Dockerfile.offline-cache
+    container_name: miroshark-prepare-offline-cache
+    volumes:
+      - hf_cache:/output/hf_cache
+      - ./backend/data:/output/backend_data
+    environment:
+      # Optional comma-separated extra HF model repos.
+      - EXTRA_HF_MODELS=${EXTRA_HF_MODELS:-}
+      # If set, also cached alongside the default reranker model.
+      - RERANKER_MODEL=${RERANKER_MODEL:-}
+
+  export-offline-cache:
+    image: alpine:3.21
+    profiles: [export]
+    container_name: miroshark-export-offline-cache
+    volumes:
+      - hf_cache:/data/hf_cache:ro
+      - ./backend/data/nemotron:/data/nemotron:ro
+      - ${OFFLINE_CACHE_ARCHIVE_DIR:-./offline-cache-export}:/backup
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        if [ -z "$$(ls -A /data/hf_cache 2>/dev/null)" ]; then
+          echo "HF cache volume is empty. Run prepare-offline-cache first." >&2
+          exit 1
+        fi
+        mkdir -p /backup
+        echo "Exporting miroshark_hf_cache -> /backup/miroshark_hf_cache.tgz"
+        tar -czf /backup/miroshark_hf_cache.tgz -C /data/hf_cache .
+        if [ -n "$$(ls -A /data/nemotron 2>/dev/null)" ]; then
+          echo "Exporting backend/data/nemotron -> /backup/miroshark_nemotron_data.tgz"
+          tar -czf /backup/miroshark_nemotron_data.tgz -C /data/nemotron .
+        else
+          echo "Skipping Nemotron export (backend/data/nemotron is empty)."
+        fi
+        echo "Done. Copy /backup/*.tgz and backend/data/nemotron/ to the air-gapped host."
+
+  import-offline-cache:
+    image: alpine:3.21
+    profiles: [import]
+    container_name: miroshark-import-offline-cache
+    volumes:
+      - hf_cache:/data/hf_cache
+      - ./backend/data/nemotron:/data/nemotron
+      - ${OFFLINE_CACHE_ARCHIVE_DIR:-./offline-cache-export}:/backup:ro
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        if [ ! -f /backup/miroshark_hf_cache.tgz ]; then
+          echo "Missing /backup/miroshark_hf_cache.tgz (set OFFLINE_CACHE_ARCHIVE_DIR if needed)." >&2
+          exit 1
+        fi
+        mkdir -p /data/hf_cache /data/nemotron
+        echo "Importing /backup/miroshark_hf_cache.tgz -> miroshark_hf_cache"
+        tar -xzf /backup/miroshark_hf_cache.tgz -C /data/hf_cache
+        if [ -f /backup/miroshark_nemotron_data.tgz ]; then
+          echo "Importing /backup/miroshark_nemotron_data.tgz -> backend/data/nemotron"
+          tar -xzf /backup/miroshark_nemotron_data.tgz -C /data/nemotron
+        else
+          echo "No miroshark_nemotron_data.tgz found; skipping Nemotron import."
+        fi
+        echo "Done. Set HF_HUB_OFFLINE=1 and TRANSFORMERS_OFFLINE=1, then start the runtime stack."
+
+volumes:
+  hf_cache:
+    name: miroshark_hf_cache

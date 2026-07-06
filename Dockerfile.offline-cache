@@ -1,0 +1,30 @@
+# Build and run on a network-connected machine to populate offline assets.
+#
+#   docker compose -f docker-compose.offline-cache.yml run --rm prepare-offline-cache
+#
+# Output:
+#   miroshark_hf_cache (named volume) -> Hugging Face model cache for reranker + twhin-bert
+#   ./backend/data/nemotron/ (bind mount) -> optional Nemotron persona parquets
+FROM python:3.12-bookworm
+
+# sentencepiece builds from sdist without a C++ compiler on slim images.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends build-essential \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:0.9.26 /uv /uvx /bin/
+
+WORKDIR /app
+
+# Install only the Python deps needed to download + verify HF assets.
+COPY backend/pyproject.toml backend/uv.lock ./backend/
+RUN cd backend && uv sync --frozen
+
+COPY backend/scripts/prepare_offline_cache.py ./backend/scripts/
+COPY backend/app/countries ./backend/app/countries/
+
+ENV HF_HOME=/output/hf_cache \
+    BACKEND_DATA_DIR=/output/backend_data
+
+ENTRYPOINT ["/app/backend/.venv/bin/python", "/app/backend/scripts/prepare_offline_cache.py"]
+CMD []

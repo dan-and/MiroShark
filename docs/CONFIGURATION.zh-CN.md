@@ -86,6 +86,9 @@ EMBEDDING_DIMENSIONS=768
 RERANKER_ENABLED=true
 RERANKER_MODEL=BAAI/bge-reranker-v2-m3
 RERANKER_CANDIDATES=30             # pool size before rerank
+# 离线部署:预先填充缓存 — 见 OFFLINE_CACHE.md
+HF_HUB_OFFLINE=0
+TRANSFORMERS_OFFLINE=0
 
 # ─── Graph-traversal retrieval (Zep/Graphiti-style BFS from seed entities) ───
 GRAPH_SEARCH_ENABLED=true

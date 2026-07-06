@@ -37,6 +37,9 @@ dependencies = [
     "scikit-learn>=1.3.0",
     "torch>=2.12.1",
     "sentence-transformers>=2.2.0",
+    # Reranker tokenizer (BAAI/bge-reranker-v2-m3 / XLM-RoBERTa)
+    "protobuf>=5.0.0",
+    "sentencepiece>=0.2.0",
     "igraph>=0.11.0",
 
     # File processing

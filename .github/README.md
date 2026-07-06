@@ -116,6 +116,7 @@ A few of the highlights:
 | | |
 |---|---|
 | [Install](../docs/INSTALL.md) | Every deployment path: cloud, Docker, Ollama, Claude Code |
+| [Offline cache](../docs/OFFLINE_CACHE.md) | Pre-download Hugging Face models for air-gapped deploys |
 | [Configuration](../docs/CONFIGURATION.md) | Env vars, model routing, feature flags |
 | [Models](../docs/MODELS.md) | Cloud preset, local Ollama models, benchmark findings |
 | [Architecture](../docs/ARCHITECTURE.md) | Simulation engine, memory pipeline, graph retrieval |
