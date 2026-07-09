@@ -76,10 +76,6 @@ class Config:
     # hang compiling Metal shader pipelines for this cross-encoder. Set to
     # 'cpu', 'cuda', or 'mps' to override.
     RERANKER_DEVICE = os.environ.get('RERANKER_DEVICE', '').strip()
-    # HuggingFace Hub offline mode — load models from local cache only (no Hub
-    # HTTP calls). Required in air-gapped deploys that mount a pre-populated
-    # ~/.cache/huggingface volume. Also set TRANSFORMERS_OFFLINE=1 in the env.
-    HF_HUB_OFFLINE = os.environ.get('HF_HUB_OFFLINE', '0').strip() == '1'
 
     # Graph-traversal retrieval (Zep/Graphiti-style BFS from seed entities).
     # A third retrieval strategy alongside vector + BM25 — catches multi-hop

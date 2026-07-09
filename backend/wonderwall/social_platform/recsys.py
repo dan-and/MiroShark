@@ -84,9 +84,7 @@ def load_model(model_name):
     try:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         if model_name == 'paraphrase-MiniLM-L6-v2':
-            return SentenceTransformer(model_name,
-                                       device=device,
-                                       cache_folder="./models")
+            return SentenceTransformer(model_name, device=device)
         elif model_name == 'Twitter/twhin-bert-base':
             twhin_tokenizer = get_twhin_tokenizer()
             twhin_model = get_twhin_model(device)

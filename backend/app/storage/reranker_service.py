@@ -77,16 +77,13 @@ class RerankerService:
             try:
                 from sentence_transformers import CrossEncoder
                 device = self._select_device()
-                local_files_only = Config.HF_HUB_OFFLINE
                 logger.info(
-                    f"Loading cross-encoder reranker: {self.model_name} "
-                    f"(device={device}, local_files_only={local_files_only})"
+                    f"Loading cross-encoder reranker: {self.model_name} (device={device})"
                 )
                 self._model = CrossEncoder(
                     self.model_name,
                     max_length=512,
                     device=device,
-                    local_files_only=local_files_only,
                 )
                 logger.info(f"Reranker ready: {self.model_name}")
                 return True

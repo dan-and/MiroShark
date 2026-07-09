@@ -2,7 +2,7 @@
 # Run on a network-connected machine; HF models land in miroshark_hf_cache,
 # Nemotron parquets under ./backend/data/nemotron/ (same bind-mount path as runtime).
 #
-# Core models only (~3.2 GB into miroshark_hf_cache):
+# Core models only (~3.3 GB into miroshark_hf_cache):
 #   docker compose -f docker-compose.offline-cache.yml run --rm prepare-offline-cache
 #
 # Include US + Singapore demographic datasets:

@@ -8,7 +8,7 @@ This repo ships a dedicated Docker workflow: HF models land in the **`miroshark_
 
 | Location | Mounted in runtime at | Used for |
 | -------- | --------------------- | -------- |
-| `miroshark_hf_cache` (named volume) | `/root/.cache/huggingface` | Reranker + Twitter recsys models |
+| `miroshark_hf_cache` (named volume) | `/root/.cache/huggingface` | Reranker + Twitter recsys models (twhin-bert, MiniLM) |
 | `./backend/data/nemotron/` (host bind mount) | `/app/backend/data/nemotron` | Demographic grounding parquets (optional) |
 | `./backend/uploads/` (host bind mount) | `/app/backend/uploads` | Uploaded documents + simulation artifacts |
 
@@ -20,10 +20,11 @@ Runtime compose files bind-mount `./backend/data` so Nemotron datasets survive c
 | ----- | --------------- | ------- | ---- | ------------ |
 | Reranker | `BAAI/bge-reranker-v2-m3` | Graph-memory hybrid search (`RerankerService`) | `miroshark_hf_cache/hub/models--BAAI--bge-reranker-v2-m3/` | ~2.2 GB |
 | Twitter recsys | `Twitter/twhin-bert-base` | Wonderwall Twitter timeline embeddings | `miroshark_hf_cache/hub/models--Twitter--twhin-bert-base/` | ~1.1 GB |
+| Twitter recsys (legacy) | `sentence-transformers/paraphrase-MiniLM-L6-v2` | Wonderwall `recsys_type="twitter"` path | `miroshark_hf_cache/hub/models--sentence-transformers--paraphrase-MiniLM-L6-v2/` | ~90 MB |
 | US personas (optional) | `nvidia/Nemotron-Personas` | Demographic grounding (`DEMOGRAPHICS_COUNTRY=us`) | `backend/data/nemotron/usa/data/train-*.parquet` | hundreds of MB |
 | Singapore personas (optional) | `nvidia/Nemotron-Personas-Singapore` | Demographic grounding (`DEMOGRAPHICS_COUNTRY=sg`) | `backend/data/nemotron/singapore/data/train-*.parquet` | hundreds of MB |
 
-**Standard `miroshark_hf_cache` bundle (reranker + twhin): ~3.2 GB.**
+**Standard `miroshark_hf_cache` bundle (reranker + twhin + MiniLM): ~3.3 GB.**
 
 Embeddings for graph search use your configured LLM/Ollama provider — they are **not** part of this cache.
 
@@ -32,7 +33,7 @@ Embeddings for graph search use your configured LLM/Ollama provider — they are
 | Bundle | Contents | When you need it |
 | ------ | -------- | ---------------- |
 | **Minimal** | `bge-reranker-v2-m3` only | Reranker on, no Twitter platform |
-| **Standard** | + `twhin-bert-base` | Default multi-platform simulations |
+| **Standard** | + `twhin-bert-base` + `paraphrase-MiniLM-L6-v2` | Default multi-platform simulations (both Twitter recsys paths) |
 | **Full** | + Nemotron parquets | `DEMOGRAPHICS_COUNTRY` set to `us` and/or `sg` |
 
 ## Quick start (connected machine)
@@ -82,7 +83,7 @@ RERANKER_MODEL=my-org/my-reranker \
   docker compose -f docker-compose.offline-cache.yml run --rm prepare-offline-cache
 ```
 
-`--model` adds **extra** repos on top of the runtime defaults (reranker + twhin):
+`--model` adds **extra** repos on top of the runtime defaults (reranker + twhin + MiniLM):
 
 ```bash
 docker compose -f docker-compose.offline-cache.yml run --rm prepare-offline-cache \
@@ -207,7 +208,7 @@ TRANSFORMERS_OFFLINE=1
 
 `docker-compose.yml`, `docker-compose.traefik.yml`, and `docker-compose.ollama.yml` default both to `0` (online). Set to `1` on air-gapped hosts.
 
-The reranker also passes `local_files_only=True` to `CrossEncoder` when `HF_HUB_OFFLINE=1` (see `backend/app/storage/reranker_service.py`).
+Both vars must be read into the process environment *before* Python starts — `huggingface_hub` caches them as a module-level constant at import time — so set them in the container's `environment:` block (as the compose files above do), not from inside application code. Once set, `transformers`, `sentence_transformers`, and `huggingface_hub` all resolve models from the local cache only, with no code changes needed at any call site (`RerankerService`, `wonderwall/social_platform/recsys.py`).
 
 ### Demographic datasets (optional)
 
@@ -229,7 +230,7 @@ The runtime image must include `protobuf` and `sentencepiece` (declared in `back
 After importing volumes and starting MiroShark, successful logs look like:
 
 ```
-Loading cross-encoder reranker: BAAI/bge-reranker-v2-m3 (device=cpu, local_files_only=True)
+Loading cross-encoder reranker: BAAI/bge-reranker-v2-m3 (device=cpu)
 Reranker ready: BAAI/bge-reranker-v2-m3
 ```
 
@@ -247,7 +248,10 @@ hub/
 │       ├── model.safetensors
 │       ├── tokenizer.json
 │       └── sentencepiece.bpe.model
-└── models--Twitter--twhin-bert-base/
+├── models--Twitter--twhin-bert-base/
+│   └── snapshots/<revision>/
+│       └── ...
+└── models--sentence-transformers--paraphrase-MiniLM-L6-v2/
     └── snapshots/<revision>/
         └── ...
 ```
@@ -283,8 +287,8 @@ Use the same flags as in the Docker examples (`--include-demographic-datasets`, 
 | `requires the protobuf library` | Missing Python package | Rebuild image with current `pyproject.toml` (`protobuf`, `sentencepiece`) |
 | `Connection reset by peer` during reranker load | Hub metadata call after weights loaded | Set `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` |
 | Weights load to 100% then failure | Same as above | Ensure offline env vars; re-run prep script to verify cache |
-| `Reranker load failed` → fused scores fallback | Cache incomplete or offline flags unset | Re-run `prepare-offline-cache`; check logs for `local_files_only=True` |
-| Twitter sim fails loading `twhin-bert-base` | Model not in cache | Include default bundle or download `Twitter/twhin-bert-base` |
+| `Reranker load failed` → fused scores fallback | Cache incomplete or offline flags unset | Re-run `prepare-offline-cache`; confirm `HF_HUB_OFFLINE`/`TRANSFORMERS_OFFLINE` are set on the runtime container |
+| Twitter sim fails loading `twhin-bert-base` or `paraphrase-MiniLM-L6-v2` | Model not in cache | Include default bundle or download the missing repo with `--model` |
 | Demographics silently skipped | Parquets missing | Run with `--include-demographic-datasets`; ensure `backend/data/nemotron/` is populated |
 | Cache larger than expected on disk | Normal — `du` on volume dedupes blob storage | Prep script reports deduplicated size in its summary |
 | Empty HF cache after `docker compose up` | Prep not run yet | Run `docker-compose.offline-cache.yml` first on a connected host |

@@ -3,7 +3,7 @@
 Download Hugging Face assets for air-gapped MiroShark deploys.
 
 Populates:
-  * HF model cache  ($HF_HOME/hub/…) — reranker + Twitter recsys models
+  * HF model cache  ($HF_HOME/hub/…) — reranker + Twitter recsys models (twhin-bert, MiniLM)
   * Demographic parquet snapshots (backend/data/nemotron/<country>/) — optional
 
 Run on a network-connected host, then copy the output directories to the
@@ -34,6 +34,9 @@ logger = logging.getLogger("miroshark.prepare_offline_cache")
 _DEFAULT_RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 # Hardcoded in wonderwall/social_platform/recsys.py (no RECSYS_MODEL env).
 RECSYS_MODEL = "Twitter/twhin-bert-base"
+# recsys.py loads this via the short name "paraphrase-MiniLM-L6-v2"; sentence-transformers
+# resolves that to this repo id, which is what we need to cache.
+MINILM_MODEL = "sentence-transformers/paraphrase-MiniLM-L6-v2"
 
 
 def _resolve_reranker_model() -> str:
@@ -41,7 +44,7 @@ def _resolve_reranker_model() -> str:
 
 
 def _default_hf_models() -> list[str]:
-    return [_resolve_reranker_model(), RECSYS_MODEL]
+    return [_resolve_reranker_model(), RECSYS_MODEL, MINILM_MODEL]
 
 COUNTRIES_DIR = Path(__file__).resolve().parent.parent / "app" / "countries"
 
@@ -65,7 +68,7 @@ def _parse_args() -> argparse.Namespace:
         action="append",
         dest="models",
         metavar="REPO_ID",
-        help="Extra HF model repo to cache (repeatable). Defaults: $RERANKER_MODEL + twhin.",
+        help="Extra HF model repo to cache (repeatable). Defaults: $RERANKER_MODEL + twhin + MiniLM.",
     )
     parser.add_argument(
         "--include-demographic-datasets",
@@ -222,7 +225,17 @@ def _verify_offline_worker(verbose: bool) -> None:
         AutoModel.from_pretrained(RECSYS_MODEL, local_files_only=True)
         logger.info("Verified recsys model: %s", RECSYS_MODEL)
 
-    known = {reranker_model, RECSYS_MODEL} - {""}
+    if MINILM_MODEL in models:
+        from sentence_transformers import SentenceTransformer
+
+        SentenceTransformer(
+            "paraphrase-MiniLM-L6-v2",
+            device="cpu",
+            local_files_only=True,
+        )
+        logger.info("Verified recsys model: %s", MINILM_MODEL)
+
+    known = {reranker_model, RECSYS_MODEL, MINILM_MODEL} - {""}
     for repo_id in models:
         if repo_id in known:
             continue
