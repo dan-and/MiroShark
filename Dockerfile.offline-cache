@@ -3,7 +3,7 @@
 #   docker compose -f docker-compose.offline-cache.yml run --rm prepare-offline-cache
 #
 # Output:
-#   miroshark_hf_cache (named volume) -> Hugging Face model cache for reranker + twhin-bert
+#   miroshark_hf_cache (named volume) -> Hugging Face model cache for reranker + twhin-bert + MiniLM
 #   ./backend/data/nemotron/ (bind mount) -> optional Nemotron persona parquets
 FROM python:3.12-bookworm
 
